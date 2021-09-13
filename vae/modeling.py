@@ -44,7 +44,7 @@ def _dense(a, b):
     d = nn.Linear(a, b)
     torch.nn.init.xavier_uniform_(d.weight)
     # torch.nn.init.kaiming_normal_(d.weight)
-    torch.nn.init.uniform_(d.bias, -0.1, 0.1)
+    torch.nn.init.uniform_(d.bias, -1.0, 1.0)
     return d
 
 

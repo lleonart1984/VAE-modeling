@@ -8,7 +8,7 @@ from vae.dataman import DataManager
 torch.set_num_threads(12)
 DEFAULT_DEVICE = torch.device('cpu')
 
-os.environ['CUDA_VISIBLE_DEVICES'] = "6,7"
+os.environ['CUDA_VISIBLE_DEVICES'] = "6"
 DEFAULT_DEVICE = torch.device('cuda:0')  # uncomment to use cuda cores...
 
 
@@ -72,6 +72,25 @@ def clear_training(states_path):
     """
     if os.path.exists(states_path):
         shutil.rmtree(states_path)
+
+
+def get_last_model(states_path, factory, top_epoch=None, **kwargs):
+    kwargs['epochs'] = 100
+    kwargs['batch_size'] = 1024
+
+    state = TrainingState(factory, **kwargs)
+    state.model.to(torch.device('cpu'))
+
+    state_id = 0
+    while os.path.exists(states_path + "/state" + str(state_id + 1)) and (top_epoch is None or state_id*10 < top_epoch):
+        state_id += 1
+
+    if os.path.exists(states_path + "/state" + str(state_id)):
+        state.load(states_path + "/state" + str(state_id))
+        print('Loading previous state... ' + states_path + "/state" + str(state_id))
+    else:
+        print('Model not found!')
+    return state.model
 
 
 def start_training(states_path, data: DataManager, factory, batch_size=1024, epochs=100, **kwargs):

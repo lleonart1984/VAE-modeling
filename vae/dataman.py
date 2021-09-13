@@ -52,3 +52,23 @@ class DataManager:
         """
         self.data = self.data.to(device)
         self.device = device if device is not None else torch.device('cpu')
+
+    def get_filtered_data(self, filters):
+        """
+        Returns a frame of the data applying the filters for each column.
+        filters is a dictionary of columns vs tuple of min max interval.
+        """
+        sel = torch.Tensor(len(self.data)).to(dtype=torch.bool).fill_(True).to(self.device)
+
+        for column_index, k in enumerate(self.mappings.keys()):
+            if k not in filters:  # no need to filter by that key
+                continue
+            a, b = filters[k]
+            if self.mappings[k] is not None:
+                a, b = self.mappings[k](a), self.mappings[k](b)
+                a, b = min(a, b), max(a, b)
+
+            sel = sel & (self.data[:, column_index] >= a) & (self.data[:, column_index] <= b)
+
+        return self.data[sel]
+

@@ -15,7 +15,7 @@ class CVAEModel(nn.Module, vae.modeling.ConditionalGenerativeModel):
 
     def __init__(
             self, condition_dim, target_dim, latent_dim,
-            width, depth, activation=nn.ReLU, forced_log_var=None
+            width, depth, activation=nn.LeakyReLU, forced_log_var=None
     ):
         super(CVAEModel, self).__init__()
         self.latent_dim = latent_dim
@@ -25,8 +25,8 @@ class CVAEModel(nn.Module, vae.modeling.ConditionalGenerativeModel):
         # More complexity of the encoder doesnt affect the performance of the decoder.
         self.encoder = self.P_MODEL(
             condition_dim, target_dim, latent_dim,
-            width * 3, depth + 1,
-            activation=nn.Softplus
+            width, depth * 2,
+            activation=nn.LeakyReLU
         )
         self.decoder = self.P_MODEL(
             condition_dim, latent_dim, target_dim,
@@ -50,6 +50,30 @@ class CVAEModel(nn.Module, vae.modeling.ConditionalGenerativeModel):
         z_mu, z_log_var, z, x_mu, x_log_var = self.forward(c, x)
         posterior_ll = torch.mean(self.P_MODEL.log_likelihood(x, x_mu, x_log_var))
         kl_div = torch.mean(self.P_MODEL.kl_divergence(z_mu, z_log_var))
+        elbo = posterior_ll - kl_div
+        loss = -elbo
+        # perform optimization
+        loss.backward()
+        return loss.item(), kl_div.item()
+
+
+class WCVAEModel(CVAEModel):
+    """
+    Weighted training to Conditional variational auto-encoder.
+    """
+
+    def __init__(
+            self, condition_dim, target_dim, latent_dim,
+            width, depth, activation=nn.LeakyReLU, forced_log_var=None
+    ):
+        super(WCVAEModel, self).__init__(condition_dim, target_dim, latent_dim, width, depth,
+                                         activation, forced_log_var)
+
+    def train_batch(self, batch):
+        c, log_w, x = batch
+        z_mu, z_log_var, z, x_mu, x_log_var = self.forward(c, x)
+        posterior_ll = torch.mean(self.P_MODEL.log_likelihood(x, x_mu, x_log_var) * torch.exp(log_w))
+        kl_div = torch.mean(self.P_MODEL.kl_divergence(z_mu, z_log_var) * torch.exp(log_w))
         elbo = posterior_ll - kl_div
         loss = -elbo
         # perform optimization
